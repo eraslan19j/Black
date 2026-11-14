@@ -1,4 +1,6 @@
 // Android'in yerel WebView hedefini Chrome DevTools protokolüyle kontrol eder.
+process.on('uncaughtException', error => { console.error(`::error::Android WebView: ${error.message}`); process.exit(1); });
+process.on('unhandledRejection', error => { console.error(`::error::Android WebView: ${error.message || error}`); process.exit(1); });
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 let target;
 for (let i = 0; i < 40 && !target; i++) {

@@ -69,12 +69,4 @@ jobs:
           target: google_apis
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: |
-            adb shell settings put global airplane_mode_on 1
-            adb shell am broadcast -a android.intent.action.AIRPLANE_MODE --ez state true
-            adb install -r apk/app-debug.apk
-            adb shell am start -n com.mirravadi.kuldefteri/.MainActivity
-            for i in $(seq 1 30); do PID=$(adb shell pidof com.mirravadi.kuldefteri | tr -d '\r'); [ -n "$PID" ] && break; sleep 1; done
-            test -n "$PID"
-            adb forward tcp:9222 localabstract:webview_devtools_remote_$PID
-            node tests/browser/android.mjs
+          script: bash tests/browser/android-smoke.sh
