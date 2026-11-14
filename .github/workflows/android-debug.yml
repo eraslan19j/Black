@@ -28,3 +28,53 @@ jobs:
           name: kul-defteri-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+  browser-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Tarayıcıda oyun akışı
+        run: |
+          npm run dev > /tmp/kul-vite.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:5173/ >/dev/null && break; sleep 1; done
+          CHROME_BIN=/usr/bin/google-chrome npm run test:browser
+  android-smoke:
+    needs: debug
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: kul-defteri-debug-apk
+          path: apk
+      - name: KVM erişimini etkinleştir
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Android emülatörde çevrimdışı açılış
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            adb shell settings put global airplane_mode_on 1
+            adb shell am broadcast -a android.intent.action.AIRPLANE_MODE --ez state true
+            adb install -r apk/app-debug.apk
+            adb shell am start -n com.mirravadi.kuldefteri/.MainActivity
+            for i in $(seq 1 30); do PID=$(adb shell pidof com.mirravadi.kuldefteri | tr -d '\r'); [ -n "$PID" ] && break; sleep 1; done
+            test -n "$PID"
+            adb forward tcp:9222 localabstract:webview_devtools_remote_$PID
+            node tests/browser/android.mjs

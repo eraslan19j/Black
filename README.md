@@ -4,7 +4,7 @@ Mirra Vadisi ile Noctis Akademisi'nde geçen, özgün ve Türkçe bir 2D hikâye
 
 ## Oynama
 
-Yatay ekranda soldaki kontrolle yürü; bir iz işaretinin yakınına gelince **İncele**'ye dokun. Sağdaki **Rün** düğmesi çizim alanını açar: çember Kor, V Su, ∧ Siper'dir. Çizimi parmağını kaldırmadan yap. Düelloda rakibin Kor Mührü'nü Su ile karşıla. Masaüstü önizlemesinde yön tuşları veya A/D, inceleme için E ve rün için R kullanılabilir. Ses düğmesi üst sağdadır. Otomatik kayıt cihazdaki localStorage'dadır; yeni oyun önceki kaydı siler. Tarayıcı verileri veya uygulama kaldırılırsa kayıt kaybolabilir.
+Yatay ekranda soldaki kontrolle sağa-sola ve sahnenin önüne/arkasına yürü; bir iz işaretinin yakınına gelince **İncele**'ye dokun. Sağdaki **Rün** düğmesi çizim alanını açar: çember Kor, V Su, ∧ Siper'dir. Çizimi parmağını kaldırmadan yap. Düelloda rakibin Kor Mührü'nü Su ile karşıla. Masaüstü önizlemesinde yön tuşları veya W/A/S/D, inceleme için E ve rün için R kullanılabilir. Ses düğmesi üst sağdadır. Otomatik kayıt cihazdaki localStorage'dadır; yeni oyun önceki kaydı siler. Tarayıcı verileri veya uygulama kaldırılırsa kayıt kaybolabilir.
 
 ## Geliştirme ve test
 
@@ -14,6 +14,8 @@ Node.js 22 ve npm gerekir. Oyun varlıkları kodla üretilir; çalışma zamanı
 npm ci
 npm test
 npm run dev
+# Başka bir terminalde, yerel Chromium ile isteğe bağlı uçtan uca test:
+CHROME_BIN=/usr/bin/google-chrome npm run test:browser
 # Üretim derlemesi:
 npm run build
 ```
@@ -30,7 +32,7 @@ cd android
 
 ## GitHub Actions
 
-Her push `Android debug APK` iş akışını çalıştırır; testler ve Android derlemesi başarılıysa `kul-defteri-debug-apk` artifact'i yüklenir. `Android imzalı AAB` Actions sekmesinden elle başlatılır. Önce güvenli bir yerde bir **upload key** oluşturun (JDK `keytool` gerekir):
+Her push `Android debug APK` iş akışını çalıştırır; birim testleri ve Android derlemesi başarılıysa `kul-defteri-debug-apk` artifact'i yüklenir. İş akışı ayrıca tarayıcıda oynanış testini ve Android emülatörde çevrimdışı WebView açılış kontrolünü çalıştırır. `Android imzalı AAB` Actions sekmesinden elle başlatılır. Önce güvenli bir yerde bir **upload key** oluşturun (JDK `keytool` gerekir):
 
 ```sh
 keytool -genkeypair -v -keystore kul-upload.jks -keyalg RSA -keysize 4096 -validity 10000 -alias kul-upload
@@ -48,7 +50,8 @@ Keystore'u ve parolaları güvenle yedekleyin; depoya yüklemeyin. Elle başlat�
 
 ## Yapı
 
-- `src/world.js`: Phaser ile çizilen sahne ve hareket
+- `src/world.js`: çok katmanlı paralaks, perspektif zemin ve derinlik hareketi
+- `src/movement.js`: dokunmatik ve klavye hareket hesapları
 - `src/story.js`: bölüm ve diyalog verileri
 - `src/recognizer.js`: tek vuruşlu rün tanıyıcı
 - `src/save.js`: sürümlenmiş yerel kayıt
@@ -59,4 +62,4 @@ Keystore'u ve parolaları güvenle yedekleyin; depoya yüklemeyin. Elle başlat�
 
 ## Bilinen sınırlar
 
-Bu dikey dilimde gerçek cihaz/APK performansı ve çeşitli Android WebView sürümleri ayrıca doğrulanmalıdır. Büyü icadı, envanter arayüzü, kalan bölümler ve tam oyun dengesi sonraki aşamalardadır. Ses sentezi cihazın Web Audio desteğine bağlıdır. Rün tanıma basit şekiller için tasarlanmıştır.
+Bu dikey dilimde gerçek cihaz/APK performansı ve çeşitli Android WebView sürümleri ayrıca doğrulanmalıdır; emülatör testi gerçek cihaz ölçümünün yerini tutmaz. Sahne perspektifi 2.5D hissi veren 2D katmanlardan oluşur, gerçek 3D değildir. Büyü icadı, envanter arayüzü, kalan bölümler ve tam oyun dengesi sonraki aşamalardadır. Ses sentezi cihazın Web Audio desteğine bağlıdır. Rün tanıma basit şekiller için tasarlanmıştır.
