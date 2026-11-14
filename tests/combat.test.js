@@ -1,0 +1,10 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { freshProgress, maxHealth, nearestEnemy, rewardKill, screenToWorldVector, tickResources, useSkill } from '../src/combat.js';
+import { loadGame, saveGame } from '../src/save.js';
+const hero = () => ({x:0,y:0,level:1,hp:100,mana:100,shield:0,cooldowns:{saldiri:0,kor:0,ayaz:0,siper:0}});
+test('menzil, öz ve bekleme süresi tüketimi yalnızca başarılı saldırıda uygulanır',()=>{const p=hero(),e={x:500,y:0,hp:100};assert.equal(useSkill(p,'kor',[e]).ok,false);assert.equal(p.mana,100);e.x=100;assert.equal(useSkill(p,'kor',[e]).ok,true);assert.equal(e.hp,62);assert.equal(p.mana,78);assert.equal(useSkill(p,'kor',[e]).ok,false);tickResources(p,4);assert.equal(useSkill(p,'kor',[e]).ok,true);});
+test('hedef tercihi ve alan etkisi',()=>{const p=hero(),a={x:50,y:0,hp:100},b={x:100,y:0,hp:100};assert.equal(nearestEnemy(p,[a,b],300,b),b);assert.equal(useSkill(p,'kor',[a,b],b).affected.length,2);assert.equal(a.hp,62);assert.equal(b.hp,62);assert.equal(useSkill(p,'ayaz',[a,b]).affected.length,2);assert.equal(a.slow,3);});
+test('kalkan iyileştirir, üst sınırı aşmaz ve seviyeyle can artar',()=>{const p=hero();p.hp=105;assert.equal(useSkill(p,'siper',[]).ok,true);assert.equal(p.hp,maxHealth(1));assert.equal(p.shield,5);assert.ok(maxHealth(2)>maxHealth(1));});
+test('izometrik hareket doğrultusu ve ilerleme',()=>{const right=screenToWorldVector(1,0),up=screenToWorldVector(0,-1);assert.ok(right.x>0&&right.y<0);assert.ok(up.x<0&&up.y<0);const p=freshProgress();for(let i=0;i<3;i++)rewardKill(p);assert.equal(p.level,2);assert.equal(p.xp,0);});
+test('arena kaydı okunur ve bozuk kayıt reddedilir',()=>{const map=new Map(),storage={getItem:k=>map.get(k),setItem:(k,v)=>map.set(k,v)};const p=freshProgress();assert.equal(saveGame(p,storage),true);assert.deepEqual(loadGame(storage),p);map.set('kul-defteri-arena-v1',JSON.stringify({...p,wave:-1}));assert.equal(loadGame(storage),null);});

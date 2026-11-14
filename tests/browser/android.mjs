@@ -23,10 +23,8 @@ try {
   await send('Runtime.enable');
   await waitFor("!!document.querySelector('[data-do=new]')");
   await evaluate("document.querySelector('[data-do=new]').click()");
-  await waitFor("!!document.querySelector('.dialogue-buttons button')");
-  await evaluate("document.querySelector('.dialogue-buttons button').click()");
-  await waitFor("!!document.querySelector('#game canvas') && !!document.querySelector('.objective')");
-  const valid = await evaluate("JSON.parse(localStorage.getItem('kul-defteri-kayit-v1')).chapter === 'prolog'");
+  await waitFor("!!document.querySelector('#game canvas') && !!document.querySelector('.health-bar')");
+  const valid = await evaluate("JSON.parse(localStorage.getItem('kul-defteri-arena-v1')).wave === 1");
   if (!valid || errors.length) throw Error(`Android WebView kayıt veya çalışma hatası: ${errors.join(', ')}`);
   console.log('Android WebView: çevrimdışı menü, giriş, Phaser kanvası ve yerel kayıt doğrulandı.');
 } catch (error) {

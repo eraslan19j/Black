@@ -1,128 +1,161 @@
 import Phaser from 'phaser';
-import { story } from './story.js';
+import { SKILLS, WORLD_SIZE, distance, maxHealth, nearestEnemy, rewardKill, screenToWorldVector, tickResources, useSkill } from './combat.js';
 
-const WIDTH = 1800;
-const GROUND_BACK = 376;
-const GROUND_FRONT = 450;
+const project = (x, y) => ({ x: (x - y) * .85, y: (x + y) * .425 });
+const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+const COLORS = { scavenger: 0x978a76, mage: 0xb77d70, boss: 0xd2a568 };
+const NAMES = { scavenger: 'Kül Avcısı', mage: 'Kor Gözcüsü', boss: 'Mezar Muhafızı' };
+function diamond(g, x, y, w, h, color, alpha = 1) { g.fillStyle(color, alpha).fillPoints([{x, y:y-h}, {x:x+w, y}, {x, y:y+h}, {x:x-w, y}], true); }
 
 export class World extends Phaser.Scene {
-  constructor() { super('world'); this.direction = 0; this.depthDirection = 0; this.walkTime = 0; this.facing = 1; }
+  constructor() { super('world'); this.inputX = 0; this.inputY = 0; this.running = false; }
   create() {
-    this.cameras.main.setBackgroundColor('#10151d').setBounds(0, 0, WIDTH, 540);
-    // Uzak, orta ve ön plan kameraya farklı hızlarda tepki verir.
-    this.sky = this.add.graphics().setScrollFactor(.15, 1);
-    this.distant = this.add.graphics().setScrollFactor(.35, 1);
-    this.mid = this.add.graphics().setScrollFactor(.68, 1);
-    this.art = this.add.graphics();
-    this.character = this.add.graphics();
-    this.foreground = this.add.graphics().setScrollFactor(1.08, 1);
-    this.effects = this.add.graphics();
-    this.ash = Array.from({ length: 45 }, (_, i) => ({ x: (i * 137 + 23) % WIDTH, y: (i * 71 + 19) % 450, speed: .15 + (i % 5) * .06, size: .6 + (i % 3) * .4 }));
-    this.pulse = null;
-    this.redraw();
-  }
-  redraw() {
-    if (!this.art) return;
-    const academy = this.game.model.chapter === 'bolum1';
-    const sky = this.sky, far = this.distant, mid = this.mid, g = this.art, fg = this.foreground;
-    [sky, far, mid, g, fg].forEach(layer => layer.clear());
-    sky.fillGradientStyle(0x192a36, 0x192a36, 0x0c141c, 0x0c141c, 1).fillRect(-1000, 0, 4000, 540);
-    sky.fillStyle(0xc6c6a9, .035).fillCircle(900, 92, 94);
-    sky.fillStyle(0xc7cbb4, .10).fillCircle(900, 92, 57);
-    sky.fillStyle(0xd3d1b9, .17).fillCircle(900, 92, 39);
-    far.fillStyle(0x30404a, .4).beginPath().moveTo(-500, 380);
-    for (let x = -500; x <= 2600; x += 110) far.lineTo(x, 260 + Math.sin(x * .004) * 45 + Math.sin(x * .011) * 28);
-    far.lineTo(2600, 480).lineTo(-500, 480).closePath().fillPath();
-    if (academy) {
-      // Kemerlere paralaks ve tekrarlanan sütunlarla koridor derinliği verilir.
-      mid.fillStyle(0x101b22, .8).fillRect(-500, 100, 3000, 300);
-      for (let x = -250; x < 2300; x += 260) {
-        mid.fillStyle(0x202d31, .65).fillRect(x + 22, 120, 175, 285);
-        mid.lineStyle(11, 0x101a20, .9).beginPath().moveTo(x, 402).lineTo(x, 202).lineTo(x + 110, 75).lineTo(x + 220, 202).lineTo(x + 220, 402).strokePath();
-        mid.lineStyle(2, 0x6c7e78, .18).beginPath().moveTo(x + 28, 395).lineTo(x + 28, 210).lineTo(x + 110, 115).lineTo(x + 192, 210).lineTo(x + 192, 395).strokePath();
-        mid.fillStyle(0xb5c8bb, .035).fillTriangle(x + 105, 117, x + 42, 385, x + 178, 385);
-      }
-      for (let x = 180; x < WIDTH; x += 310) {
-        g.fillStyle(0xe8a354, .035).fillCircle(x, 294, 86);
-        g.fillStyle(0xefae63, .07).fillCircle(x, 294, 43);
-        g.fillStyle(0x886749, .85).fillRect(x - 3, 293, 6, 20);
-        g.fillStyle(0xf5c681, .95).fillTriangle(x - 3, 293, x, 283, x + 3, 293);
-      }
-    } else {
-      for (let x = -300; x < 2400; x += 100) {
-        const h = 100 + ((x + 300) * 17 % 130);
-        mid.fillStyle(0x14232a, .9).fillTriangle(x, 398, x + 50, 398 - h, x + 100, 398).fillRect(x + 45, 365, 10, 40);
-      }
-      mid.fillStyle(0x0d1920, .95).fillRect(1450, 170, 125, 230).fillTriangle(1438, 170, 1512, 66, 1587, 170);
-      mid.fillStyle(0xc8a879, .35).fillRect(1493, 230, 5, 20).fillRect(1531, 263, 5, 20);
-    }
-    // Perspectif zemin ve çizgiler: karakter, arka ve ön sınırlar arasında dolaşabilir.
-    g.fillGradientStyle(0x263337, 0x263337, 0x090e13, 0x090e13, 1).fillRect(0, GROUND_BACK, WIDTH, 164);
-    g.lineStyle(2, 0x7c8b80, .28).lineBetween(0, GROUND_BACK, WIDTH, GROUND_BACK);
-    for (let y = 390; y <= 540; y += (y - 366) * .48) g.lineStyle(1, 0x93a59b, .10).lineBetween(0, y, WIDTH, y);
-    for (let x = -300; x < WIDTH + 400; x += 90) g.lineStyle(1, 0xa4b0a4, .10).lineBetween(x, GROUND_BACK, x * 1.42 - 380, 540);
-    for (let i = 0; i < 20; i++) g.fillStyle(0xc8d2c7, .025).fillEllipse(i * 105, 391 + i % 4 * 10, 200, 13);
-    const data = story[this.game.model.chapter];
-    if (data) data.objects.forEach((obj, i) => {
-      if (i < this.game.model.step) return;
-      const active = i === this.game.model.step;
-      if ((this.game.model.chapter === 'prolog' && i === 1) || (academy && i === 2)) {
-        const px = obj.x, py = 392;
-        g.fillStyle(0x000000, .3).fillEllipse(px, py + 26, 48, 9);
-        g.fillStyle(academy ? 0x25202a : 0x2b3031).fillTriangle(px - 17, py + 23, px, py - 43, px + 17, py + 23);
-        g.fillStyle(0xb9aba1, .8).fillCircle(px, py - 39, 8);
-        g.fillStyle(academy ? 0x16141c : 0x352f2c).fillEllipse(px, py - 44, 20, 12);
-      }
-      g.fillStyle(active ? 0xe3ba7a : 0x647b7c, active ? .09 : .025).fillCircle(obj.x, 357, active ? 40 : 25);
-      g.lineStyle(2, active ? 0xeac78f : 0x728380, active ? .9 : .3).strokeCircle(obj.x, 357, 9);
-      g.lineBetween(obj.x, 342, obj.x, 372).lineBetween(obj.x - 15, 357, obj.x + 15, 357);
+    this.cameras.main.setBackgroundColor('#111a1b').setBounds(-1800, -120, 3600, 2000);
+    this.drawTerrain();
+    this.heroGraphic = this.add.graphics();
+    this.effects = this.add.graphics().setDepth(5000);
+    this.texts = []; this.flashes = []; this.enemies = []; this.spawnClock = 0; this.hudClock = 0;
+    this.game.worldReady?.();
+    this.input.on('pointerdown', pointer => {
+      if (!this.running || !this.player || pointer.downElement !== this.game.canvas) return;
+      const p = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+      let chosen = null, best = 40;
+      for (const enemy of this.enemies) { const pos = project(enemy.x, enemy.y); const d = Math.hypot(p.x-pos.x, p.y-(pos.y-20)); if (d < best) { best = d; chosen = enemy; } }
+      if (chosen) { this.selected = chosen; this.game.notify?.(`${NAMES[chosen.type]} hedeflendi`); }
     });
-    // Ön plan siluetleri sahnenin geri kalanından hızlı kayar.
-    for (let x = -100; x < 2300; x += academy ? 520 : 390) {
-      fg.fillStyle(0x080e12, .7);
-      if (academy) { fg.fillRect(x, 0, 22, 540); fg.fillRect(x - 12, 0, 46, 30); }
-      else { fg.fillTriangle(x - 18, 540, x + 12, 270, x + 42, 540); fg.fillRect(x + 2, 350, 14, 190); }
+  }
+  drawTerrain() {
+    const g = this.add.graphics().setDepth(-10000);
+    const tile = 100;
+    for (let y = 0; y < WORLD_SIZE; y += tile) for (let x = 0; x < WORLD_SIZE; x += tile) {
+      const p = project(x + tile/2, y + tile/2), seed = ((x * 13 + y * 37) / tile) % 7;
+      diamond(g, p.x, p.y, 85, 42.5, [0x243a33, 0x293f36, 0x263c34, 0x2b4036, 0x273b32, 0x2c4237, 0x263a32][seed]);
+      g.lineStyle(1, 0xb6c3a4, .035).strokePoints([{x:p.x,y:p.y-42.5},{x:p.x+85,y:p.y},{x:p.x,y:p.y+42.5},{x:p.x-85,y:p.y}], true);
+      if (seed === 2 || seed === 5) { g.lineStyle(1, 0xb7ba8c, .2); g.lineBetween(p.x-12,p.y+7,p.x-15,p.y+1); g.lineBetween(p.x-15,p.y+1,p.x-18,p.y+4); }
+    }
+    // Dekorlar çarpışmayı engellemez; görsel derinlik için gerçek çizim sırası kullanılır.
+    for (let i = 0; i < 32; i++) {
+      const x = 120 + ((i * 313 + 47) % 1550), y = 120 + ((i * 541 + 131) % 1550), p = project(x,y);
+      const obj = this.add.graphics().setPosition(p.x,p.y).setDepth(p.y);
+      if (i % 4 === 0) {
+        obj.fillStyle(0x101c18,.4).fillEllipse(0,4,58,20);
+        obj.fillStyle(0x303a34).fillRect(-10,-45,20,45); diamond(obj,0,-45,10,5,0x6a7260);
+        obj.fillStyle(0x222e29).fillRect(5,-43,5,42); obj.lineStyle(1,0x89917a,.35).lineBetween(-6,-33,-6,-7);
+      } else {
+        obj.fillStyle(0x14241b,.4).fillEllipse(0,4,58,18);
+        obj.fillStyle(0x263424).fillRect(-4,-38,8,38);
+        diamond(obj,0,-47,27,16,0x334b35); diamond(obj,0,-62,21,13,0x425c40); diamond(obj,0,-75,12,9,0x58704b);
+      }
     }
   }
-  cast(color = 0xe5be7d) { this.pulse = { start: this.time.now, color }; }
+  startRun(progress) {
+    this.enemies.forEach(e => e.graphic.destroy()); this.enemies = []; this.flashes = [];
+    this.progress = progress;
+    this.player = { x: 900, y: 900, level: progress.level, hp: maxHealth(progress.level), mana: 100, shield: 0, cooldowns: Object.fromEntries(Object.keys(SKILLS).map(k => [k,0])) };
+    this.selected = null; this.inputX = 0; this.inputY = 0; this.running = true; this.spawnClock = 0;
+    this.spawnWave();
+  }
+  spawnWave() {
+    const count = Math.min(4 + this.progress.wave, 13);
+    for (let i=0; i<count; i++) {
+      const angle = (i / count) * Math.PI * 2 + this.progress.wave * .52, radius = 240 + (i % 3) * 75;
+      const type = this.progress.wave % 5 === 0 && i === 0 ? 'boss' : (i % 3 === 2 ? 'mage' : 'scavenger');
+      const health = (type === 'boss' ? 200 : type === 'mage' ? 55 : 68) + (this.progress.wave-1) * 6;
+      this.enemies.push({ x:clamp(this.player.x+Math.cos(angle)*radius,80,WORLD_SIZE-80), y:clamp(this.player.y+Math.sin(angle)*radius,80,WORLD_SIZE-80), type, hp:health, maxHp:health, slow:0, attack:1 + i * .18, graphic:this.add.graphics(), offset:i });
+    }
+    this.game.notify?.(`${this.progress.wave}. DALGA · ${count} DÜŞMAN`);
+  }
+  pauseRun() { this.running = false; this.inputX = this.inputY = 0; }
+  resumeRun() { if (this.player?.hp > 0) this.running = true; }
+  respawn() { this.progress.gold = Math.floor(this.progress.gold * .9); this.game.saveProgress?.(); this.startRun(this.progress); }
+  cast(name) {
+    if (!this.running) return;
+    const result = useSkill(this.player, name, this.enemies, this.selected);
+    if (!result.ok) { this.game.notify?.(result.reason); return; }
+    if (result.target) this.selected = result.target;
+    const origin = project(this.player.x,this.player.y), target = result.target ? project(result.target.x,result.target.y) : origin;
+    this.flashes.push({ name, origin, target, age:0 });
+    for (const e of result.affected) { const p=project(e.x,e.y); this.floating(p.x,p.y-65, `−${SKILLS[name].damage+(this.player.level-1)*3}`, '#f6d08c'); }
+    this.game.playTone?.(name);
+    this.cleanDead();
+    this.game.updateHud?.(this);
+  }
+  cleanDead() {
+    for (const e of this.enemies.filter(e => e.hp <= 0)) {
+      const result = rewardKill(this.progress, e.type === 'boss');
+      const p = project(e.x,e.y); this.floating(p.x,p.y-34, `+${result.gold} kül`, '#edd48a');
+      if (result.levelled) { this.player.level = this.progress.level; this.player.hp = maxHealth(this.player.level); this.player.mana = 100; this.game.notify?.(`SEVİYE ${this.player.level} · CAN VE ÖZ YENİLENDİ`); }
+      e.graphic.destroy(); if (this.selected === e) this.selected = null;
+    }
+    this.enemies = this.enemies.filter(e => e.hp > 0);
+    this.game.saveProgress?.();
+    if (!this.enemies.length) { this.progress.wave++; this.progress.bestWave = Math.max(this.progress.bestWave, this.progress.wave); this.game.saveProgress?.(); this.spawnClock = 2.5; this.game.notify?.('ALAN TEMİZLENDİ · YENİ DALGA YAKLAŞIYOR'); }
+  }
+  floating(x,y,text,color) {
+    const label = this.add.text(x,y,text,{ fontFamily:'Arial',fontSize:'15px',fontStyle:'bold',color,stroke:'#101715',strokeThickness:4 }).setOrigin(.5).setDepth(6000);
+    this.tweens.add({targets:label,y:y-38,alpha:0,duration:850,onComplete:()=>label.destroy()});
+  }
+  drawCharacter(g, kind, selected = false, scale = 1, slow = false) {
+    g.clear(); g.fillStyle(0x000000,.32).fillEllipse(0,4,44*scale,16*scale);
+    if (selected) { g.lineStyle(2,0xe6cc89,.9).strokeEllipse(0,4,50*scale,20*scale); }
+    if (kind === 'hero') {
+      g.fillStyle(0x141d21).fillTriangle(-17*scale,0,0,-55*scale,17*scale,0);
+      g.fillStyle(0x4d5353).fillRect(-9*scale,-43*scale,18*scale,30*scale);
+      g.fillStyle(0xc8b8a1).fillCircle(0,-50*scale,8*scale); g.fillStyle(0x20282b).fillEllipse(0,-56*scale,19*scale,11*scale);
+      g.lineStyle(2,0xb99a71).lineBetween(8*scale,-36*scale,20*scale,-22*scale); g.fillStyle(0xeacc83).fillCircle(20*scale,-22*scale,3*scale);
+    } else {
+      const color = slow ? 0x96c9d3 : COLORS[kind];
+      g.fillStyle(0x232322).fillTriangle(-16*scale,0,0,-54*scale,16*scale,0);
+      g.fillStyle(color).fillEllipse(0,-33*scale,20*scale,30*scale);
+      g.fillStyle(0x3c3530).fillCircle(0,-50*scale,10*scale);
+      g.fillStyle(kind === 'mage' ? 0xffa96c : 0xe2c69a).fillCircle(-3*scale,-51*scale,2*scale).fillCircle(3*scale,-51*scale,2*scale);
+      if (kind === 'boss') { g.lineStyle(3,0xd5b173).lineBetween(-9*scale,-55*scale,-14*scale,-67*scale).lineBetween(9*scale,-55*scale,14*scale,-67*scale); }
+    }
+  }
   update(time, delta) {
-    if (!this.character || !this.game.model) return;
-    const m = this.game.model;
-    const dt = Math.min(delta, 50);
-    if (this.game.canMove && (this.direction || this.depthDirection)) {
-      m.x = Phaser.Math.Clamp(m.x + this.direction * dt * .21, 50, WIDTH - 50);
-      m.depth = Phaser.Math.Clamp((m.depth ?? .55) + this.depthDirection * dt * .0008, 0, 1);
-      if (Math.abs(this.direction) > .05) this.facing = Math.sign(this.direction);
-      this.walkTime += dt;
+    if (!this.player) return;
+    const dt = Math.min(delta/1000, .05), p = this.player;
+    if (this.running) {
+      const move = screenToWorldVector(this.inputX,this.inputY); p.x = clamp(p.x+move.x*190*dt,45,WORLD_SIZE-45); p.y = clamp(p.y+move.y*190*dt,45,WORLD_SIZE-45);
+      tickResources(p,dt);
+      for (const enemy of this.enemies) {
+        enemy.slow = Math.max(0,enemy.slow-dt); enemy.attack -= dt;
+        const d = distance(p,enemy), desired = enemy.type === 'mage' ? 185 : 40;
+        if (d < 570 && d > .1) {
+          const speed = (enemy.type === 'mage' ? 64 : enemy.type === 'boss' ? 49 : 76) * (enemy.slow > 0 ? .45 : 1);
+          let direction = d > desired ? 1 : enemy.type === 'mage' && d < 115 ? -1 : 0;
+          enemy.x = clamp(enemy.x + (p.x-enemy.x)/d * speed * direction * dt, 40,WORLD_SIZE-40);
+          enemy.y = clamp(enemy.y + (p.y-enemy.y)/d * speed * direction * dt, 40,WORLD_SIZE-40);
+          if (d < (enemy.type === 'mage' ? 235 : 60) && enemy.attack <= 0) {
+            const damage = (enemy.type === 'boss' ? 18 : enemy.type === 'mage' ? 9 : 7) + Math.floor(this.progress.wave/3);
+            const actualDamage = Math.max(1, Math.round(damage * (p.shield > 0 ? .4 : 1)));
+            p.hp = Math.max(0, p.hp - actualDamage);
+            enemy.attack = enemy.type === 'boss' ? 2.2 : enemy.type === 'mage' ? 2.4 : 1.7;
+            const at = project(p.x,p.y); this.floating(at.x,at.y-72,`−${actualDamage}`,'#ef8b77');
+            if (enemy.type === 'mage') this.flashes.push({name:'enemy',origin:project(enemy.x,enemy.y),target:at,age:0});
+            if (p.hp <= 0) { this.pauseRun(); this.game.onDefeat?.(); break; }
+          }
+        }
+      }
+      if (this.spawnClock > 0) { this.spawnClock -= dt; if (this.spawnClock <= 0) this.spawnWave(); }
     }
-    const camera = this.cameras.main;
-    const zoom = this.scale.height / 540;
-    if (camera.zoom !== zoom) camera.setZoom(zoom);
-    camera.centerOn(m.x, 270);
-    const depth = m.depth ?? .55, y = Phaser.Math.Linear(GROUND_BACK + 10, GROUND_FRONT, depth);
-    const size = .78 + depth * .32, x = m.x;
-    const walking = this.game.canMove && (Math.abs(this.direction) + Math.abs(this.depthDirection)) > .05;
-    const bob = walking ? Math.sin(this.walkTime / 100) * 2 : Math.sin(time / 850) * .5;
-    const g = this.character; g.clear();
-    g.fillStyle(0x000000, .38).fillEllipse(x, y + 3, 54 * size, 10 * size);
-    g.fillStyle(0xe6b96b, .035).fillCircle(x + this.facing * 20 * size, y - 35 * size, 53 * size);
-    g.fillStyle(0x0a0e15).fillTriangle(x - 20 * size, y, x, y - 84 * size + bob, x + 22 * size, y);
-    g.fillStyle(0x242b32).fillRect(x - 11 * size, y - 68 * size + bob, 22 * size, 45 * size);
-    g.lineStyle(1, 0x727870, .55).lineBetween(x, y - 62 * size + bob, x - 4 * size, y - 10 * size);
-    g.fillStyle(0xb7aaa0).fillCircle(x, y - 82 * size + bob, 10 * size);
-    g.fillStyle(0x10151c).fillEllipse(x, y - 87 * size + bob, 24 * size, 13 * size);
-    g.lineStyle(2, 0x9b805c, .8).lineBetween(x + this.facing * 8 * size, y - 57 * size + bob, x + this.facing * 23 * size, y - 38 * size + bob);
-    g.fillStyle(0xeac17a, .85).fillCircle(x + this.facing * 23 * size, y - 38 * size + bob, 2 * size);
-    const fx = this.effects; fx.clear();
-    for (const p of this.ash) {
-      p.y -= p.speed * dt / 16; p.x += Math.sin((p.y + time / 50) / 45) * dt * .003;
-      if (p.y < 0) p.y = 455;
-      fx.fillStyle(0xd8cfb7, .25).fillCircle(p.x, p.y, p.size);
+    const point = project(p.x,p.y); const camera = this.cameras.main; camera.setZoom(this.scale.height/540); camera.centerOn(point.x,point.y-35);
+    this.drawCharacter(this.heroGraphic,'hero'); this.heroGraphic.setPosition(point.x,point.y).setDepth(point.y+.1);
+    if (p.shield > 0) { this.heroGraphic.lineStyle(2,0x9de3ed,.7).strokeEllipse(0,-24,65,81); }
+    for (const enemy of this.enemies) {
+      const pos=project(enemy.x,enemy.y), scale=enemy.type==='boss'?1.5:1;
+      this.drawCharacter(enemy.graphic,enemy.type,enemy === this.selected,scale,enemy.slow>0);
+      enemy.graphic.setPosition(pos.x,pos.y).setDepth(pos.y);
+      enemy.graphic.fillStyle(0x151a18,.8).fillRect(-23*scale,-75*scale,46*scale,5);
+      enemy.graphic.fillStyle(0xc77961).fillRect(-23*scale,-75*scale,46*scale*(enemy.hp/enemy.maxHp),5);
     }
-    if (this.pulse) {
-      const age = (time - this.pulse.start) / 800;
-      if (age >= 1) this.pulse = null;
-      else { fx.lineStyle(3 * (1 - age), this.pulse.color, (1 - age) * .8).strokeCircle(x, y - 40 * size, 12 + age * 100); fx.fillStyle(this.pulse.color, (1 - age) * .09).fillCircle(x, y - 40 * size, 25 + age * 80); }
+    this.effects.clear();
+    for (const fx of this.flashes) { if (this.running) fx.age += dt; const a = 1-fx.age/.45; if (a <= 0) continue;
+      const color = fx.name==='ayaz'?0x95d9ed:fx.name==='siper'?0xd5e8bd:fx.name==='enemy'?0xe4705d:0xf2a658;
+      if (fx.name==='ayaz' || fx.name==='siper') { this.effects.lineStyle(4,color,a).strokeEllipse(fx.origin.x,fx.origin.y,40+fx.age*380,20+fx.age*190); }
+      else { this.effects.lineStyle(4,color,a).lineBetween(fx.origin.x,fx.origin.y-32,fx.target.x,fx.target.y-30); this.effects.fillStyle(color,a*.45).fillCircle(fx.target.x,fx.target.y-30,10+fx.age*22); }
     }
+    this.flashes = this.flashes.filter(f => f.age < .45);
+    this.hudClock += dt; if (this.hudClock > .12) { this.hudClock=0; this.game.updateHud?.(this); }
   }
 }

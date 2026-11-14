@@ -1,22 +1,30 @@
-# Kül Defteri
+# Kül Defteri — Arena
 
-Mirra Vadisi ile Noctis Akademisi'nde geçen, özgün ve Türkçe bir 2D hikâye-aksiyon RPG'si. Depodaki mevcut oynanabilir sürüm **Milestone 1 dikey dilimidir**: prolog, birinci bölüm ve bir Ayna Düello. Hikâyenin kalanı ve büyü icadı henüz uygulanmadı; bu sürüm tam oyun değildir.
+Kül Defteri, hikâye yerine savaşa odaklanan, tek oyunculu, çevrimdışı bir aksiyon RPG prototipidir. Phaser ile üretilmiş izometrik 2.5D sahnede dalgalar hâlinde gelen düşmanlarla savaşılır. Sahne gerçek 3D değildir; görseller kodla üretilen 2D katman ve siluetlerdir. Hiçbir harici oyun varlığı kullanılmaz.
 
-## Oynama
+## Nasıl oynanır?
 
-Yatay ekranda soldaki kontrolle sağa-sola ve sahnenin önüne/arkasına yürü; bir iz işaretinin yakınına gelince **İncele**'ye dokun. Sağdaki **Rün** düğmesi çizim alanını açar: çember Kor, V Su, ∧ Siper'dir. Çizimi parmağını kaldırmadan yap. Düelloda rakibin Kor Mührü'nü Su ile karşıla. Masaüstü önizlemesinde yön tuşları veya W/A/S/D, inceleme için E ve rün için R kullanılabilir. Ses düğmesi üst sağdadır. Otomatik kayıt cihazdaki localStorage'dadır; yeni oyun önceki kaydı siler. Tarayıcı verileri veya uygulama kaldırılırsa kayıt kaybolabilir.
+Yatay ekranda soldaki joystick ile hareket et. Düşmana dokunarak hedef seç veya menzildeki en yakın düşmanın otomatik hedeflenmesini kullan. Düşmanlar seni takip eder; Kor Gözcüleri uzak mesafeden saldırır ve çok yaklaştığında geri çekilir. Her beşinci dalgada güçlü bir muhafız çıkar.
+
+- **Asa Darbesi (Q):** Tek hedefe ücretsiz saldırı; düğmeyi basılı tutabilirsin.
+- **Kor Küresi (E):** Hedefin çevresindeki düşmanlara alan hasarı verir.
+- **Ayaz Halkası (R):** Yakındaki düşmanlara hasar verir ve onları yavaşlatır.
+- **Kül Sığınağı (F):** İyileştirir ve kısa süre alınan hasarı azaltır.
+
+Büyüler öz kullanır, bekleme süresine sahiptir ve geçerli hedef yoksa öz harcamaz. Öz zamanla yenilenir. Düşmanlardan kül ve deneyim kazan; seviye atladığında canın ve özün dolar. Yere düşersen aynı dalgayı tekrar denersin, külünün %10'u kaybolur. Masaüstü önizlemesinde WASD veya yön tuşlarıyla hareket edebilirsin.
+
+Seviye, deneyim, kül, yenilen düşman sayısı ve dalga cihazda otomatik saklanır. Arenaya yeniden girildiğinde düşmanlar ve can/öz yeniden oluşturulur; konum ve tek tek düşmanların sağlığı saklanmaz. Eski hikâye sürümünün kayıtları ayrı anahtarda kalır, arena ilerlemesine dönüştürülmez. Uygulama verileri temizlenir veya uygulama kaldırılırsa yerel kayıt kaybolur.
 
 ## Geliştirme ve test
 
-Node.js 22 ve npm gerekir. Oyun varlıkları kodla üretilir; çalışma zamanında ağ veya harici varlık gerekmez.
+Node.js 22 ve npm gerekir:
 
 ```sh
 npm ci
 npm test
 npm run dev
-# Başka bir terminalde, yerel Chromium ile isteğe bağlı uçtan uca test:
+# Başka bir terminalde, yerel Chromium ile:
 CHROME_BIN=/usr/bin/google-chrome npm run test:browser
-# Üretim derlemesi:
 npm run build
 ```
 
@@ -28,38 +36,35 @@ cd android
 ./gradlew assembleDebug
 ```
 
-Çıktı: `android/app/build/outputs/apk/debug/app-debug.apk`. Uygulama Android 6.0+ (API 23+) hedefler ve yatay yönü kullanır. Orta seviye cihazlarda 60 FPS hedeflenir; performans gerçek cihazlarda ayrıca ölçülmelidir.
+Çıktı: `android/app/build/outputs/apk/debug/app-debug.apk`. Android 6.0+ (API 23+) ve yatay ekran kullanılır. 60 FPS hedeflenir; farklı gerçek cihazlarda performans henüz ölçülmemiştir.
 
 ## GitHub Actions
 
-Her push `Android debug APK` iş akışını çalıştırır; birim testleri ve Android derlemesi başarılıysa `kul-defteri-debug-apk` artifact'i yüklenir. İş akışı ayrıca tarayıcıda oynanış testini ve Android emülatörde çevrimdışı WebView açılış kontrolünü çalıştırır. `Android imzalı AAB` Actions sekmesinden elle başlatılır. Önce güvenli bir yerde bir **upload key** oluşturun (JDK `keytool` gerekir):
+Her push `Android debug APK` iş akışını çalıştırır; test ve derleme başarılıysa `kul-defteri-debug-apk` artifact'i yüklenir. Tarayıcı oynanış testi ve Android emülatörde çevrimdışı açılış testi ayrıca çalışır. `Android imzalı AAB` Actions sekmesinden elle başlatılır. Önce güvenli bir yerde **upload key** oluşturun:
 
 ```sh
 keytool -genkeypair -v -keystore kul-upload.jks -keyalg RSA -keysize 4096 -validity 10000 -alias kul-upload
 base64 -w 0 kul-upload.jks  # macOS: base64 -i kul-upload.jks | tr -d '\n'
 ```
 
-GitHub deposu **Settings → Secrets and variables → Actions** bölümüne şu secrets değerlerini ekleyin:
+GitHub **Settings → Secrets and variables → Actions** bölümüne ekleyin:
 
 - `ANDROID_KEYSTORE_BASE64`: keystore dosyasının base64 çıktısı
 - `ANDROID_KEYSTORE_PASSWORD`: keystore parolası
 - `ANDROID_KEY_ALIAS`: örnekte `kul-upload`
 - `ANDROID_KEY_PASSWORD`: anahtar parolası
 
-Keystore'u ve parolaları güvenle yedekleyin; depoya yüklemeyin. Elle başlatılan iş akışı imzalı AAB üretir ve imzasını doğrular. Play Console'da Play App Signing, paket adı, sürüm kodu, mağaza girişi, içerik derecelendirmesi, veri güvenliği formu ve yayın öncesi cihaz testleri ayrıca yönetilmelidir. Sürüm yüklemelerinde `versionCode` artırılmalıdır.
+Keystore'u ve parolaları güvenle yedekleyin; depoya yüklemeyin. AAB iş akışı imzalı paket üretir ve doğrular. Play App Signing, paket adı, artan sürüm kodu, mağaza girişi, içerik derecelendirmesi, veri güvenliği ve yayın öncesi cihaz testleri ayrıca yönetilmelidir.
 
-## Yapı
+## Yapı ve sınırlar
 
-- `src/world.js`: çok katmanlı paralaks, perspektif zemin ve derinlik hareketi
-- `src/movement.js`: dokunmatik ve klavye hareket hesapları
-- `src/story.js`: bölüm ve diyalog verileri
-- `src/recognizer.js`: tek vuruşlu rün tanıyıcı
-- `src/save.js`: sürümlenmiş yerel kayıt
+- `src/world.js`: izometrik dünya, düşman davranışları, dalga ve savaş efektleri
+- `src/combat.js`: büyüler, hedefleme, hasar ve seviye hesapları
+- `src/movement.js`: joystick ve klavye hareket hesapları
+- `src/save.js`: sürümlenmiş yerel arena kaydı
 - `src/audio.js`: Web Audio ile sentezlenen sesler
-- `src/main.js`: oyun akışı ve dokunmatik arayüz
+- `src/main.js`: menü, dokunmatik arayüz ve oyun akışı
 - `android/`: Capacitor Android projesi
 - `GIZLILIK.md`: yayın öncesi gözden geçirilecek gizlilik politikası taslağı
 
-## Bilinen sınırlar
-
-Bu dikey dilimde gerçek cihaz/APK performansı ve çeşitli Android WebView sürümleri ayrıca doğrulanmalıdır; emülatör testi gerçek cihaz ölçümünün yerini tutmaz. Sahne perspektifi 2.5D hissi veren 2D katmanlardan oluşur, gerçek 3D değildir. Büyü icadı, envanter arayüzü, kalan bölümler ve tam oyun dengesi sonraki aşamalardadır. Ses sentezi cihazın Web Audio desteğine bağlıdır. Rün tanıma basit şekiller için tasarlanmıştır.
+Bu sürüm sınırlı bir arenadır; çok oyunculu, gerçek 3D, ekipman/envanter ve geniş açık dünya içermez. Denge ve gerçek cihaz performansı ayrıca test edilmelidir. İnternet izni Capacitor'un yerel WebView sunucusu için tanımlıdır; oyun dış ağa istek göndermez.
