@@ -4,7 +4,7 @@ function normalize(points) {
   if (points.length < 2) return null;
   const distances = [0];
   for (let i = 1; i < points.length; i++) distances.push(distances[i - 1] + Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y));
-  const length = distances.at(-1);
+  const length = distances[distances.length - 1];
   if (length < 20) return null;
   const sampled = [];
   for (let i = 0, segment = 1; i < SAMPLES; i++) {

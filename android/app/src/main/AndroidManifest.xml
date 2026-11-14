@@ -36,4 +36,6 @@
         </provider>
     </application>
 
+    <!-- Capacitor'un yerel WebView sunucusu için gereklidir; oyun ağ isteği yapmaz. -->
+    <uses-permission android:name="android.permission.INTERNET" />
 </manifest>

@@ -29,4 +29,10 @@ try {
   const valid = await evaluate("JSON.parse(localStorage.getItem('kul-defteri-kayit-v1')).chapter === 'prolog'");
   if (!valid || errors.length) throw Error(`Android WebView kayıt veya çalışma hatası: ${errors.join(', ')}`);
   console.log('Android WebView: çevrimdışı menü, giriş, Phaser kanvası ve yerel kayıt doğrulandı.');
+} catch (error) {
+  try {
+    const diagnostics = await evaluate("JSON.stringify({url:location.href, ready:document.readyState, title:document.title, body:document.body?.innerText?.slice(0,350), interface:document.querySelector('#interface')?.innerHTML?.slice(0,200), userAgent:navigator.userAgent})");
+    console.error(`::error::WebView tanılama: ${diagnostics}`);
+  } catch { /* Hedef kapanmış olabilir. */ }
+  throw error;
 } finally { socket.close(); }
