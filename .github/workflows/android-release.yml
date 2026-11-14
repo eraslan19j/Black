@@ -1,0 +1,47 @@
+name: Android imzalı AAB
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - run: npm test
+      - run: npm run android:sync
+      - name: İmza anahtarını hazırla
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$KEYSTORE_BASE64" || { echo 'ANDROID_KEYSTORE_BASE64 eksik'; exit 1; }
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/kul-defteri.jks"
+      - name: İmzalı AAB derle ve doğrula
+        working-directory: android
+        env:
+          KUL_KEYSTORE_PATH: ${{ runner.temp }}/kul-defteri.jks
+          KUL_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KUL_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KUL_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          test -n "$KUL_KEYSTORE_PASSWORD" && test -n "$KUL_KEY_ALIAS" && test -n "$KUL_KEY_PASSWORD"
+          ./gradlew bundleRelease
+          jarsigner -verify -certs app/build/outputs/bundle/release/app-release.aab
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kul-defteri-imzali-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+      - name: Geçici anahtarı sil
+        if: always()
+        run: rm -f "$RUNNER_TEMP/kul-defteri.jks"

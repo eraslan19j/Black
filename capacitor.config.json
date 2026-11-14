@@ -1,0 +1,6 @@
+{
+  "appId": "com.mirravadi.kuldefteri",
+  "appName": "Kül Defteri",
+  "webDir": "dist",
+  "android": { "allowMixedContent": false }
+}
