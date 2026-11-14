@@ -15,12 +15,20 @@ try {
   const readSave = () => page.evaluate(() => JSON.parse(localStorage.getItem('kul-defteri-kayit-v1')));
   // Joystick hem yatay hem derinlik ekseninde hareket eder; bırakıldığında durur.
   const stick = await page.locator('.joystick').boundingBox();
-  await page.mouse.move(stick.x + stick.width/2, stick.y + stick.height/2); await page.mouse.down();
-  await page.mouse.move(stick.x + stick.width*.85, stick.y + stick.height*.85); await page.waitForTimeout(1300); await page.mouse.up();
+  const cdp = await page.context().newCDPSession(page);
+  const center = {x: stick.x + stick.width/2, y: stick.y + stick.height/2, id: 1};
+  const moved = {x: stick.x + stick.width*.85, y: stick.y + stick.height*.85, id: 1};
+  await cdp.send('Input.dispatchTouchEvent', {type:'touchStart', touchPoints:[center]});
+  await cdp.send('Input.dispatchTouchEvent', {type:'touchMove', touchPoints:[moved]});
+  await page.waitForTimeout(900);
+  // Diğer parmakla ses düğmesine basarken joystick işaretçi yakalamasını kaybetmemeli.
+  const sound = await page.getByRole('button', {name:'Sesi aç veya kapat'}).boundingBox();
+  const second = {x:sound.x+sound.width/2, y:sound.y+sound.height/2, id:2};
+  await cdp.send('Input.dispatchTouchEvent', {type:'touchStart', touchPoints:[moved, second]});
+  await cdp.send('Input.dispatchTouchEvent', {type:'touchEnd', touchPoints:[moved]});
+  await page.waitForTimeout(400); await cdp.send('Input.dispatchTouchEvent', {type:'touchEnd', touchPoints:[]});
   let saved = await readSave(); assert.ok(saved.x > 175, `Joystick x: ${saved.x}`); assert.ok(saved.depth > .57, `Joystick derinlik: ${saved.depth}`);
   const oldX = saved.x; await page.waitForTimeout(700); saved = await readSave(); assert.ok(Math.abs(saved.x-oldX) < 4, 'Joystick bırakılınca durmalı');
-  // Sesi değiştirirken kontrol yeniden oluşturulmadığından dokunma takılı kalmaz.
-  await page.getByRole('button', {name: 'Sesi aç veya kapat'}).click();
   await page.getByRole('button', {name: 'RÜN'}).click();
   const canvas = page.locator('.canvas-wrap canvas');
   async function drawV() { const r = await canvas.boundingBox(); await page.mouse.move(r.x+r.width*.2,r.y+r.height*.2); await page.mouse.down(); await page.mouse.move(r.x+r.width*.5,r.y+r.height*.8,{steps:10}); await page.mouse.move(r.x+r.width*.8,r.y+r.height*.2,{steps:10}); await page.mouse.up(); }
